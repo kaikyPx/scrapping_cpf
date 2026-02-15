@@ -1,0 +1,7 @@
+node_modules/
+auth_state.json
+*.png
+.env
+.idea/
+.vscode/
+package-lock.json
