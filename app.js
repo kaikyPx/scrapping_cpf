@@ -57,6 +57,9 @@ async function updateStatus(rowIndex, status) {
     }
 }
 
+const INTERACTION_DELAY = 5000;
+const interactSleep = () => sleep(INTERACTION_DELAY);
+
 /**
  * Main automation flow.
  */
@@ -130,14 +133,19 @@ async function run() {
             // 1. Ensure Logged In
             console.log('Navegando para o sistema...');
             await page.goto('https://centrax.parcelex.com.br/pedidos', { waitUntil: 'networkidle', timeout: 60000 });
+            await interactSleep();
             await logPageText(page, 'Após Login/Navegação');
 
             if (page.url().includes('/auth/login')) {
                 console.log('Sessão expirada. Relogando...');
                 await page.fill('input[type="email"]', 'lucena.daniel646@gmail.com');
+                await interactSleep();
                 await page.fill('input[type="password"]', '123456');
+                await interactSleep();
                 await page.click('button[type="submit"]');
+                await interactSleep();
                 await page.waitForNavigation({ waitUntil: 'networkidle' });
+                await interactSleep();
                 await context.storageState({ path: AUTH_STATE_PATH });
                 await logPageText(page, 'Após Relogin');
             }
@@ -146,23 +154,27 @@ async function run() {
             const modalButton = page.locator('text="Estou ciente"');
             if (await modalButton.count() > 0) {
                 await modalButton.first().click();
+                await interactSleep();
                 await page.waitForTimeout(1000);
             }
 
             // 3. Navigate to Analysis
             console.log('Acessando criação de link...');
             await page.click('a:has-text("Link de pagamento")');
+            await interactSleep();
             await page.waitForTimeout(2000);
 
             const criarBtn = page.locator('button:has-text("Criar link de pagamento")');
             if (await criarBtn.count() > 0) {
                 await criarBtn.click();
+                await interactSleep();
                 await page.waitForNavigation({ waitUntil: 'networkidle' }).catch(() => { });
+                await interactSleep();
             } else {
                 await page.goto('https://centrax.parcelex.com.br/link-de-pagamento/criar', { waitUntil: 'networkidle' });
+                await interactSleep();
             }
             await logPageText(page, 'Tela de Criação de Link');
-
             await page.waitForTimeout(3000);
 
             // 4. Reset Form (Click X if modal is open)
@@ -177,6 +189,7 @@ async function run() {
                 if (await closeButton.count() > 0) {
                     console.log('Fechando modal anterior (v2)...');
                     await closeButton.first().click({ timeout: 3000 });
+                    await interactSleep();
                     await page.waitForTimeout(1000);
 
                     // Check if "Descartar link" confirmation appeared
@@ -184,6 +197,7 @@ async function run() {
                     if (await descartarBtn.isVisible()) {
                         console.log('Confirmando descarte de link...');
                         await descartarBtn.click();
+                        await interactSleep();
                         await page.waitForTimeout(1000);
                     }
 
@@ -194,6 +208,7 @@ async function run() {
                         await page.waitForTimeout(3000);
                         console.log('Navegando para criação limpa...');
                         await page.goto('https://centrax.parcelex.com.br/link-de-pagamento/criar', { waitUntil: 'load', timeout: 30000 });
+                        await interactSleep();
                     } catch (navErr) {
                         console.error('Erro na navegação de reset:', navErr.message);
                     }
@@ -206,6 +221,7 @@ async function run() {
                     if (await resetCriarBtn.isVisible()) {
                         console.log('Botão "Criar link de pagamento" visível após reset. Clicando...');
                         await resetCriarBtn.click();
+                        await interactSleep();
                         await page.waitForTimeout(3000);
                     }
 
@@ -217,6 +233,7 @@ async function run() {
                     if (await novaBuscaBtn.count() > 0) {
                         console.log('Clicando em Nova busca para resetar...');
                         await novaBuscaBtn.first().click({ timeout: 3000 });
+                        await interactSleep();
                         await page.waitForTimeout(3000); // 3s wait
                     } else {
                         console.log('Nenhum modal ou botão de reset visível (Formulário deve estar limpo).');
@@ -242,6 +259,7 @@ async function run() {
                 if (await linkPagamentoMenu.isVisible()) {
                     console.log('Clicando no menu "Link de pagamento"...');
                     await linkPagamentoMenu.click();
+                    await interactSleep();
                     await page.waitForTimeout(3000);
                 }
 
@@ -250,11 +268,13 @@ async function run() {
                 if (await criarLinkBtn.isVisible()) {
                     console.log('Clicando em "Criar link de pagamento"...');
                     await criarLinkBtn.click();
+                    await interactSleep();
                     await page.waitForTimeout(5000); // Wait for form load
                     await logPageText(page, 'Após Navegação via UI para Criação');
                 } else {
                     console.warn('Botão "Criar link de pagamento" não encontrado após navegar pelo menu. Tentando URL direta como último recurso...');
                     await page.goto('https://centrax.parcelex.com.br/link-de-pagamento/criar', { waitUntil: 'load', timeout: 30000 });
+                    await interactSleep();
                     await page.waitForTimeout(5000);
                 }
             } else {
@@ -271,13 +291,16 @@ async function run() {
                 console.log('Botão "Buscar CPF" visível. Iniciando busca...');
                 const cpfInput = page.locator('input[type="text"]').or(page.locator('input[placeholder=""]')).first();
                 await cpfInput.fill(CPF);
+                await interactSleep();
                 // Use force: true to bypass backdrop interception if it's still fading out
                 await buscarCpfBtn.click({ force: true });
+                await interactSleep();
                 await page.waitForTimeout(3000);
                 await logPageText(page, 'Após Buscar CPF');
             } else if (await criarLinkBtnCheck.isVisible()) {
                 console.log('Ainda estamos no Dashboard (Criar link visível). Clicando para ir ao formulário...');
                 await criarLinkBtnCheck.click();
+                await interactSleep();
                 await page.waitForTimeout(5000); // Wait for form to load
 
                 // Now check again for "Buscar CPF" inside the form
@@ -285,7 +308,9 @@ async function run() {
                     console.log('Agora no formulário. Buscando CPF...');
                     const cpfInput = page.locator('input[type="text"]').or(page.locator('input[placeholder=""]')).first();
                     await cpfInput.fill(CPF);
+                    await interactSleep();
                     await buscarCpfBtn.click({ force: true });
+                    await interactSleep();
                 } else {
                     console.log('Botão Buscar CPF ainda não apareceu. Assumindo formulário ativo.');
                 }
@@ -326,12 +351,15 @@ async function run() {
 
             const phoneInput = page.locator('input[type="tel"]').or(page.locator('label:has-text("Celular") + input')).or(page.locator('input[aria-describedby*="form-item"]')).nth(1);
             await safeFill(phoneInput, PHONE, 'Celular');
+            await interactSleep();
 
             const emailInput = page.locator('input[type="email"]').or(page.locator('label:has-text("Email") + input')).or(page.locator('input[aria-describedby*="form-item"]')).nth(2);
             await safeFill(emailInput, EMAIL, 'Email');
+            await interactSleep();
 
             const cepInput = page.locator('label:has-text("CEP") + input').or(page.locator('input[placeholder*="CEP"]')).or(page.locator('input[aria-describedby*="form-item"]')).last();
             await safeFill(cepInput, CEP, 'CEP');
+            await interactSleep();
 
             const termsCheckbox = page.locator('button[role="checkbox"]').or(page.locator('input[type="checkbox"]'));
             if (await termsCheckbox.count() > 0) {
@@ -341,6 +369,7 @@ async function run() {
                     if (!(await checkbox.isChecked())) {
                         console.log('Marcando checkbox de termos...');
                         await checkbox.click({ force: true });
+                        await interactSleep();
                         await page.waitForTimeout(500); // Wait for potential state update
                     } else {
                         console.log('Termos já aceitos.');
@@ -358,6 +387,7 @@ async function run() {
                 if (await continuarBtn.count() > 0 && await continuarBtn.isEnabled()) {
                     console.log(`Tentativa ${attempt}: Clicando em "Continuar"...`);
                     await continuarBtn.first().click({ force: true });
+                    await interactSleep();
 
                     try {
                         // Wait for navigation or change in UI - e.g. "Continuar" disappears or "Proposta" appears
@@ -385,6 +415,7 @@ async function run() {
                         console.log('Detectado link ativo existente. Clicando em "Editar link ativo"...');
                         await page.screenshot({ path: `debug_antes_editar_link_${attempt}.png` });
                         await editarLinkSelector.first().click({ force: true });
+                        await interactSleep();
                         await page.waitForTimeout(3000);
                         await logPageText(page, 'Após clicar em Editar Link Ativo');
                         break; // Break the retry loop as we have handled the "blocking" modal
@@ -436,8 +467,40 @@ async function run() {
             let statusToUpdate = "";
 
             if (hasProposta) {
-                console.log('Status: Pré aprovado (Proposta encontrada)');
+                console.log('Status: Pré aprovado (Proposta encontrada). Preenchendo valor...');
                 statusToUpdate = "Pré aprovado";
+
+                try {
+                    // Tentar preencher o valor da proposta com 500,00
+                    console.log('Tentando preencher valor de 500,00...');
+                    const valorInput = page.locator('input[placeholder*="0,00"], input[name*="valor"], input[id*="valor"]').first();
+                    if (await valorInput.isVisible()) {
+                        await valorInput.click();
+                        await interactSleep();
+                        // Tentar preencher 50000 assumindo máscara de centavos, ou 500,00 direto
+                        await valorInput.fill('50000');
+                        console.log('Valor 50000 preenchido.');
+                        await interactSleep();
+                        await page.waitForTimeout(1000);
+                    } else {
+                        console.warn('Campo de valor da proposta não encontrado visivelmente.');
+                    }
+
+                    // Clicar em Continuar/Salvar da proposta se houver
+                    const continuaraPropostaBtn = page.locator('button:has-text("Continuar"), button:has-text("Salvar"), button:has-text("Confirmar")')
+                        .filter({ visible: true })
+                        .first();
+
+                    if (await continuaraPropostaBtn.isVisible()) {
+                        console.log('Clicando em Continuar/Salvar na proposta...');
+                        await continuaraPropostaBtn.click();
+                        await interactSleep();
+                        await page.waitForTimeout(2000);
+                    }
+
+                } catch (e) {
+                    console.error('Erro ao preencher valor da proposta:', e.message);
+                }
 
                 // Handle the "X" -> "Salvar e sair" flow
                 console.log('Fechando proposta para salvar...');
@@ -450,6 +513,7 @@ async function run() {
 
                 if (await closeButton.count() > 0) {
                     await closeButton.first().click();
+                    await interactSleep();
 
                     // Wait for the "Salvar e sair" modal
                     console.log('Aguardando modal de salvar...');
@@ -457,6 +521,7 @@ async function run() {
                         const salvarSairBtn = page.locator('button:has-text("Salvar e sair")');
                         await salvarSairBtn.waitFor({ state: 'visible', timeout: 5000 });
                         await salvarSairBtn.click();
+                        await interactSleep();
                         console.log('Clicou em "Salvar e sair".');
                         // Wait for navigation or modal close
                         await page.waitForTimeout(2000);
@@ -469,7 +534,19 @@ async function run() {
 
             } else if (finalError) {
                 console.error(`Status: Erro - ${finalError}`);
-                statusToUpdate = finalError.toLowerCase().includes('inválido') ? "Dados invalidos" : "Não";
+                const lowerError = finalError.toLowerCase();
+
+                if (lowerError.includes('cpf')) {
+                    statusToUpdate = "Cpf Invalido";
+                } else if (lowerError.includes('telefone') || lowerError.includes('celular')) {
+                    statusToUpdate = "Telefone Invalido";
+                } else if (lowerError.includes('email')) {
+                    statusToUpdate = "Email invalido";
+                } else if (lowerError.includes('cep')) {
+                    statusToUpdate = "CEP invalido";
+                } else {
+                    statusToUpdate = lowerError.includes('inválido') ? "Dados invalidos" : "Não";
+                }
             } else {
                 // Fallback to URL check if text check failed but maybe URL changed? 
                 // Although user said currently simple URL check fails. 
