@@ -114,27 +114,13 @@ async function run() {
              * Helper to log all visible text on the page for debugging.
              */
             async function logPageText(page, stepName) {
-                console.log(`\n--- [DEBUG] Conteúdo da Tela: ${stepName} ---`);
-                try {
-                    await page.screenshot({ path: `debug_${stepName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.png` }); // NEW: Screenshot
-                    const text = await page.evaluate(() => document.body.innerText);
-                    // Clean up excessive whitespace for readability
-                    const cleanText = text.split('\n')
-                        .map(line => line.trim())
-                        .filter(line => line.length > 0)
-                        .join('\n');
-                    console.log(cleanText);
-                    console.log('---------------------------------------------------\n');
-                } catch (e) {
-                    console.error(`Erro ao capturar texto da tela em ${stepName}:`, e.message);
-                }
+                // Desativado: console.log(`\n--- [DEBUG] Conteúdo da Tela: ${stepName} ---`);
             }
 
             // 1. Ensure Logged In
             console.log('Navegando para o sistema...');
             await page.goto('https://centrax.parcelex.com.br/pedidos', { waitUntil: 'networkidle', timeout: 60000 });
             await interactSleep();
-            await logPageText(page, 'Após Login/Navegação');
 
             if (page.url().includes('/auth/login')) {
                 console.log('Sessão expirada. Relogando...');
@@ -147,7 +133,6 @@ async function run() {
                 await page.waitForNavigation({ waitUntil: 'networkidle' });
                 await interactSleep();
                 await context.storageState({ path: AUTH_STATE_PATH });
-                await logPageText(page, 'Após Relogin');
             }
 
             // 2. Dismiss Modal
@@ -174,7 +159,6 @@ async function run() {
                 await page.goto('https://centrax.parcelex.com.br/link-de-pagamento/criar', { waitUntil: 'networkidle' });
                 await interactSleep();
             }
-            await logPageText(page, 'Tela de Criação de Link');
             await page.waitForTimeout(3000);
 
             // 4. Reset Form (Click X if modal is open)
@@ -225,7 +209,6 @@ async function run() {
                         await page.waitForTimeout(3000);
                     }
 
-                    await logPageText(page, 'Após Reset e Retorno');
 
                 } else {
                     // Also check for "Nova busca" button which sometimes appears
@@ -270,7 +253,6 @@ async function run() {
                     await criarLinkBtn.click();
                     await interactSleep();
                     await page.waitForTimeout(5000); // Wait for form load
-                    await logPageText(page, 'Após Navegação via UI para Criação');
                 } else {
                     console.warn('Botão "Criar link de pagamento" não encontrado após navegar pelo menu. Tentando URL direta como último recurso...');
                     await page.goto('https://centrax.parcelex.com.br/link-de-pagamento/criar', { waitUntil: 'load', timeout: 30000 });
@@ -296,7 +278,6 @@ async function run() {
                 await buscarCpfBtn.click({ force: true });
                 await interactSleep();
                 await page.waitForTimeout(3000);
-                await logPageText(page, 'Após Buscar CPF');
             } else if (await criarLinkBtnCheck.isVisible()) {
                 console.log('Ainda estamos no Dashboard (Criar link visível). Clicando para ir ao formulário...');
                 await criarLinkBtnCheck.click();
@@ -314,10 +295,8 @@ async function run() {
                 } else {
                     console.log('Botão Buscar CPF ainda não apareceu. Assumindo formulário ativo.');
                 }
-                await logPageText(page, 'Após Recuperação do Dashboard');
             } else {
                 console.log('Botão "Buscar CPF" e "Criar Link" não encontrados. Assumindo formulário já preenchido/ativo.');
-                await logPageText(page, 'Formulário Inicial (Sem Busca)');
             }
 
             // 6. Check if search failed immediately (e.g. invalid CPF or already failed)
@@ -360,6 +339,27 @@ async function run() {
             const cepInput = page.locator('label:has-text("CEP") + input').or(page.locator('input[placeholder*="CEP"]')).or(page.locator('input[aria-describedby*="form-item"]')).last();
             await safeFill(cepInput, CEP, 'CEP');
             await interactSleep();
+
+            // CLT Field (New Request: Always Sim)
+            console.log('Selecionando "Sim" para o campo CLT...');
+            try {
+                // Tenta encontrar o botão/label "Sim" que esteja próximo ao texto CLT ou carteira assinada
+                const cltSim = page.locator('div').filter({ hasText: /^O cliente é trabalhador de carteira assinada \(CLT\)\?$/ })
+                    .locator('label:has-text("Sim"), button:has-text("Sim"), [role="radio"]:has-text("Sim")')
+                    .first()
+                    .or(page.locator('label:has-text("Sim")').filter({ has: page.locator('xpath=ancestor::div[contains(., "CLT")]') }).first())
+                    .or(page.locator('button:has-text("Sim")').filter({ has: page.locator('xpath=ancestor::div[contains(., "CLT")]') }).first());
+
+                if (await cltSim.count() > 0) {
+                    await cltSim.click({ force: true });
+                    console.log('Campo CLT preenchido com Sim.');
+                    await interactSleep();
+                } else {
+                    console.log('Campo CLT não encontrado ou já selecionado.');
+                }
+            } catch (e) {
+                console.log('Aviso: Falha ao tentar preencher campo CLT:', e.message.split('\n')[0]);
+            }
 
             const termsCheckbox = page.locator('button[role="checkbox"]').or(page.locator('input[type="checkbox"]'));
             if (await termsCheckbox.count() > 0) {
@@ -413,11 +413,9 @@ async function run() {
 
                     if (await editarLinkSelector.first().isVisible()) {
                         console.log('Detectado link ativo existente. Clicando em "Editar link ativo"...');
-                        await page.screenshot({ path: `debug_antes_editar_link_${attempt}.png` });
                         await editarLinkSelector.first().click({ force: true });
                         await interactSleep();
                         await page.waitForTimeout(3000);
-                        await logPageText(page, 'Após clicar em Editar Link Ativo');
                         break; // Break the retry loop as we have handled the "blocking" modal
                     } else if (await continuarBtn.isVisible()) {
                         // If "Continuar" is still there and no "Editar link ativo", retry
@@ -434,7 +432,6 @@ async function run() {
                 }
             }
 
-            await logPageText(page, 'Após Submeter Formulário');
 
             // Double check for "Editar link ativo" interception just in case it appeared late
             try {
@@ -444,7 +441,6 @@ async function run() {
                     console.log('Detectado link ativo existente (pós-loop). Clicando em "Editar link ativo"...');
                     await editarBtn.click();
                     await page.waitForTimeout(3000);
-                    await logPageText(page, 'Após clicar em Editar Link Ativo (pós-loop)');
                 }
             } catch (e) {
                 // Ignore
@@ -455,7 +451,6 @@ async function run() {
 
             // Wait a bit to ensure the page has loaded the proposal or error
             await page.waitForTimeout(2000);
-            await logPageText(page, 'Resultado Final da Análise');
 
             const pageContent = await page.content();
             const hasProposta = pageContent.includes('Proposta') && pageContent.includes('Valor da proposta');
@@ -556,11 +551,9 @@ async function run() {
             }
 
             await updateStatus(rowIndex, statusToUpdate);
-            await page.screenshot({ path: `log_linha_${rowIndex}.png` });
 
         } catch (error) {
             console.error('Erro no ciclo do loop:', error.message);
-            await page.screenshot({ path: 'loop_error.png' });
             await sleep(10000); // Retry after a delay on fatal cycle error
         }
     }
